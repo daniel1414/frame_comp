@@ -1,83 +1,42 @@
-use anyhow::Error;
+use anyhow::Result;
 use vulkanalia::prelude::v1_3::*;
+use std::rc::Rc;
+
+use crate::vulkan::{buffers::uniform_buffer::{create_descriptor_pool, create_descriptor_set_layout}, pipeline::create_pipeline, render_pass::create_render_pass};
 
 pub mod vulkan;
 
 #[derive(Clone, Debug)]
-pub struct FrameComparatorCreateInfo<'a, 'b> {
-    // The vulkan instance
-    instance: &'a Instance,
-
+pub struct FrameComparator {
     // For interfacing with the hardware,
-    device: &'b Device,
-
-    // For knowing where to render the output to.
-    render_area: vk::Rect2D,
-
-    // Render pass, just duh.
-    swapchain_format: vk::Format,
-    msaa_samples: vk::SampleCountFlags,
-    depth_format: vk::Format,
-}
-
-impl<'a, 'b> FrameComparatorCreateInfo<'a, 'b> {
-    pub fn new(
-        instance: &'a Instance,
-        device: &'b Device,
-        render_area: vk::Rect2D,
-        swapchain_format: vk::Format,
-        depth_format: vk::Format,
-        msaa_samples: vk::SampleCountFlags,
-    ) -> Self {
-        Self {
-            instance,
-            device,
-            render_area,
-            swapchain_format,
-            msaa_samples,
-            depth_format,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct FrameComparator<'a, 'b> {
-    create_info: FrameComparatorCreateInfo<'a, 'b>,
+    device: Rc<Device>,
     render_pass: vk::RenderPass,
+    pipeline_layout: vk::PipelineLayout,
+    pipeline: vk::Pipeline,
 }
 
-impl<'a, 'b> FrameComparator<'a, 'b> {
-    pub fn new(info: FrameComparatorCreateInfo<'a, 'b>) -> Result<Self, Error> {
-        let render_pass = vulkan::render_pass::create_render_pass(&info)?;
+impl FrameComparator {
+    pub fn new(
+        device: Rc<Device>,
+        format: vk::Format,
+        extent: vk::Extent2D,
+    ) -> Result<Self> {
+        let render_pass = create_render_pass(&device, format)?;
+        let descriptor_pool = create_descriptor_pool(&device)?;
+        let descriptor_set_layout = create_descriptor_set_layout(&device)?;
+        let (pipeline_layout, pipeline) = create_pipeline(&device, &extent, &render_pass,&[descriptor_set_layout])?;
 
-        Ok(Self {
-            create_info: info,
-            render_pass: render_pass,
-        })
+        Ok(Self { device, render_pass, pipeline_layout, pipeline })
     }
 
-    pub fn render(&self, command_buffer: &vk::CommandBuffer, percentage: f32) {
-        let vbar_width = 4u32;
-        let render_area = &self.create_info.render_area;
-
-        let left_extent = (render_area.extent.width as f32 * percentage) as u32;
-        let left_render_area = vk::Rect2D::builder()
-            .offset(render_area.offset)
-            .extent(vk::Extent2D {
-                width: left_extent - vbar_width / 2,
-                height: render_area.extent.height,
-            })
-            .build();
-
-        let right_render_area = vk::Rect2D::builder()
-            .offset(vk::Offset2D {
-                x: (left_extent + vbar_width / 2) as i32,
-                y: 0,
-            })
-            .extent(vk::Extent2D {
-                width: render_area.extent.width - left_extent - vbar_width / 2,
-                height: render_area.extent.height,
-            })
-            .build();
+    pub fn get_render_pass(&self) -> vk::RenderPass {
+        self.render_pass
     }
+
+    pub fn compare(left_image: vk::Framebuffer, right_image: vk::Framebuffer, out_image: vk::Framebuffer) {
+
+    }
+
+
 }
+

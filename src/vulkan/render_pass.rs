@@ -1,14 +1,12 @@
 use anyhow::Result;
 use vulkanalia::prelude::v1_3::*;
 
-use crate::FrameComparatorCreateInfo;
-
-pub fn create_render_pass(info: &FrameComparatorCreateInfo) -> Result<vk::RenderPass> {
+pub fn create_render_pass(device: &Device, format: vk::Format) -> Result<vk::RenderPass> {
     let color_attachment = vk::AttachmentDescription::builder()
         // Format of the color attachment should be same as the swapchain images.
-        .format(info.swapchain_format)
-        // For multisampling (anti-aliasing)
-        .samples(info.msaa_samples)
+        .format(format)
+        // We don't multipsample in the comparator, as we're just copying pixels one by one.
+        .samples(vk::SampleCountFlags::_1)
         // Defines what happens to the attachment at the start of rendering
         .load_op(vk::AttachmentLoadOp::CLEAR)
         // What happens to the attachment after rendering
@@ -18,56 +16,18 @@ pub fn create_render_pass(info: &FrameComparatorCreateInfo) -> Result<vk::Render
         // Expected layout of the attachment before rendering.
         .initial_layout(vk::ImageLayout::UNDEFINED)
         // Defines what the final layout of the attachment should be after rendering.
-        .final_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR)
         .build();
 
     let color_attachment_ref = vk::AttachmentReference::builder()
         .attachment(0)
+        // While this subpass is running, the attachment will be in this layout.
         .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
-
-    let color_attachments = &[color_attachment_ref];
-
-    let depth_stencil_attachment = vk::AttachmentDescription::builder()
-        .format(info.depth_format)
-        .samples(info.msaa_samples)
-        .load_op(vk::AttachmentLoadOp::CLEAR)
-        // We don't care about the depth data as it won't be used after drawing
-        // has finished. Contrary to the color attachment, which is used to
-        // present images to the screen. This may allow the hardware to perform
-        // additional optimizations.
-        .store_op(vk::AttachmentStoreOp::DONT_CARE)
-        .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
-        .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
-        .initial_layout(vk::ImageLayout::UNDEFINED)
-        .final_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-        .build();
-
-    let depth_stencil_attachment_ref = vk::AttachmentReference::builder()
-        .attachment(1)
-        .layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-
-    let color_resolve_attachment = vk::AttachmentDescription::builder()
-        .format(info.swapchain_format)
-        .samples(vk::SampleCountFlags::_1)
-        .load_op(vk::AttachmentLoadOp::DONT_CARE)
-        .store_op(vk::AttachmentStoreOp::STORE)
-        .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
-        .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
-        .initial_layout(vk::ImageLayout::UNDEFINED)
-        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR)
-        .build();
-
-    let color_resolve_attachment_ref = vk::AttachmentReference::builder()
-        .attachment(2)
-        .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
-
-    let resolve_attachments = &[color_resolve_attachment_ref];
 
     let subpass = vk::SubpassDescription::builder()
         .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
-        .color_attachments(color_attachments)
-        .depth_stencil_attachment(&depth_stencil_attachment_ref)
-        .resolve_attachments(resolve_attachments);
+        .color_attachments(std::slice::from_ref(&color_attachment_ref))
+        .build();
 
     // This dependency makes sure that the swapchain image is ready to be written to
     // in the first subpass. Ensures pipeline and memory synchronization.
@@ -84,7 +44,6 @@ pub fn create_render_pass(info: &FrameComparatorCreateInfo) -> Result<vk::Render
         // outside the render pass is finished before continuing (e.g. presenting to the user).
         .src_stage_mask(
             vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT
-                | vk::PipelineStageFlags::EARLY_FRAGMENT_TESTS,
         )
         // Specifies the memory access type(s) in the source scope that need synchronization.
         // In this case there are no specific memory accesses that need synchronization in this dependency.
@@ -95,30 +54,20 @@ pub fn create_render_pass(info: &FrameComparatorCreateInfo) -> Result<vk::Render
         // This ensures that the destination subpass starts writing to the color attachment
         // only after it's safe to do so.
         .dst_stage_mask(
-            vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT
-                | vk::PipelineStageFlags::EARLY_FRAGMENT_TESTS,
+            vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
         )
         // Specifies the memory access type(s) required in the destination scope.
         // COLOR_ATTACHMENT_WRITE indicates that the subpass will write to the color attachment.
         // This ensures proper synchronization of memory for writing, so the render pass
         // doesn't overwrite data that's still being processed from prior operations.
         .dst_access_mask(
-            vk::AccessFlags::COLOR_ATTACHMENT_WRITE
-                | vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
+            vk::AccessFlags::COLOR_ATTACHMENT_READ | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
         );
 
-    let attachments = &[
-        color_attachment,
-        depth_stencil_attachment,
-        color_resolve_attachment,
-    ];
-    let subpasses = &[subpass];
-    let dependencies = &[dependency];
-
     let rp_info = vk::RenderPassCreateInfo::builder()
-        .attachments(attachments)
-        .subpasses(subpasses)
-        .dependencies(dependencies);
+        .attachments(std::slice::from_ref(&color_attachment))
+        .subpasses(std::slice::from_ref(&subpass))
+        .dependencies(std::slice::from_ref(&dependency));
 
-    Ok(unsafe { info.device.create_render_pass(&rp_info, None) }?)
+    Ok(unsafe { device.create_render_pass(&rp_info, None) }?)
 }
