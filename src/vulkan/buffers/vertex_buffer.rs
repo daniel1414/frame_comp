@@ -2,9 +2,9 @@ use anyhow::*;
 use std::ptr::copy_nonoverlapping as memcpy;
 use vulkanalia::prelude::v1_3::*;
 
-use crate::{vulkan::vertex::Vertex};
+use crate::vulkan::vertex::Vertex;
 
-use super::buffer::{copy_buffer, create_buffer};
+/* use super::buffer::{copy_buffer, create_buffer};
 
 pub fn create_vertex_buffer(
     instance: &Instance,
@@ -63,3 +63,4 @@ pub fn create_vertex_buffer(
 
     Ok(())
 }
+ */

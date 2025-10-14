@@ -4,7 +4,12 @@ use vulkanalia::prelude::v1_3::*;
 
 use super::vertex::Vertex;
 
-pub(crate) fn create_pipeline(device: &Device, extent: &vk::Extent2D, render_pass: &vk::RenderPass, descriptor_set_layouts: &[vk::DescriptorSetLayout]) -> Result<(vk::PipelineLayout, vk::Pipeline)> {
+pub(crate) fn create_pipeline(
+    device: &Device,
+    extent: &vk::Extent2D,
+    render_pass: &vk::RenderPass,
+    descriptor_set_layouts: &[vk::DescriptorSetLayout],
+) -> Result<(vk::PipelineLayout, vk::Pipeline)> {
     let vert = include_bytes!("shaders/vert.spv");
     let frag = include_bytes!("shaders/frag.spv");
 
@@ -110,23 +115,23 @@ pub(crate) fn create_pipeline(device: &Device, extent: &vk::Extent2D, render_pas
     let pipeline_layout = unsafe { device.create_pipeline_layout(&layout_info, None) }?;
 
     /* let depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo::builder()
-        // Specifies if the depth of new fragments should be compared to the depth buffer
-        // to see if they should be discarded.
-        .depth_test_enable(true)
-        // Specifies if the new depth of fragments that pass the depth test should actually
-        // be written to the depth buffer.
-        .depth_write_enable(true)
-        // Comparison that is performed to keep or discard fragments. For us lower depth = closer,
-        // So the depth of new fragments should be less.
-        .depth_compare_op(vk::CompareOp::LESS)
-        // These three parameters are used for the optional depth bound test. This allows to
-        // only keep fragments that fall within the specified depth range. This is optional.
-        //.depth_bounds_test_enable(true)
-        //.min_depth_bounds(0.0)
-        //.max_depth_bounds(1.0)
-        .depth_bounds_test_enable(false)
-        // We will not be using stencil operations here.
-        .stencil_test_enable(false); */
+    // Specifies if the depth of new fragments should be compared to the depth buffer
+    // to see if they should be discarded.
+    .depth_test_enable(true)
+    // Specifies if the new depth of fragments that pass the depth test should actually
+    // be written to the depth buffer.
+    .depth_write_enable(true)
+    // Comparison that is performed to keep or discard fragments. For us lower depth = closer,
+    // So the depth of new fragments should be less.
+    .depth_compare_op(vk::CompareOp::LESS)
+    // These three parameters are used for the optional depth bound test. This allows to
+    // only keep fragments that fall within the specified depth range. This is optional.
+    //.depth_bounds_test_enable(true)
+    //.min_depth_bounds(0.0)
+    //.max_depth_bounds(1.0)
+    .depth_bounds_test_enable(false)
+    // We will not be using stencil operations here.
+    .stencil_test_enable(false); */
 
     let stages = &[vert_stage, frag_stage];
     let info = vk::GraphicsPipelineCreateInfo::builder()

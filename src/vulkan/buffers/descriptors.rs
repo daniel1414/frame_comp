@@ -45,6 +45,7 @@ pub fn create_descriptor_pool(device: &Device) -> Result<vk::DescriptorPool> {
     let info = vk::DescriptorPoolCreateInfo::builder()
         .pool_sizes(pool_sizes)
         .max_sets(1)
+        .flags(vk::DescriptorPoolCreateFlags::FREE_DESCRIPTOR_SET)
         .build();
 
     let descriptor_pool = unsafe { device.create_descriptor_pool(&info, None) }?;
@@ -71,7 +72,11 @@ pub fn create_descriptor_pool(device: &Device) -> Result<vk::DescriptorPool> {
 /// The sets are bound to the pipeline before issuing draw calls.
 ///
 ///
-pub fn create_descriptor_sets(device: &Device, pool: &vk::DescriptorPool, layout: &vk::DescriptorSetLayout) -> Result<Vec<vk::DescriptorSet>> {
+pub fn create_descriptor_set(
+    device: &Device,
+    pool: &vk::DescriptorPool,
+    layout: &vk::DescriptorSetLayout,
+) -> Result<vk::DescriptorSet> {
     // We use the same layout for all swapchain images.
     let info = vk::DescriptorSetAllocateInfo::builder()
         .descriptor_pool(*pool)
@@ -80,7 +85,8 @@ pub fn create_descriptor_sets(device: &Device, pool: &vk::DescriptorPool, layout
 
     let descriptor_sets = unsafe { device.allocate_descriptor_sets(&info) }?;
 
-    let image_info = vk::DescriptorImageInfo::builder()
+    // This will be useful later in the compare() function
+    /* let image_info = vk::DescriptorImageInfo::builder()
         .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
         .image_view(data.texture_image_view)
         .sampler(data.texture_sampler)
@@ -101,7 +107,7 @@ pub fn create_descriptor_sets(device: &Device, pool: &vk::DescriptorPool, layout
             &[sampler_write],
             &[] as &[vk::CopyDescriptorSet],
         )
-    };
+    }; */
 
-    Ok(descriptor_sets)
+    Ok(descriptor_sets[0])
 }
