@@ -42,9 +42,7 @@ pub fn create_render_pass(device: &Device, format: vk::Format) -> Result<vk::Ren
         // COLOR_ATTACHMENT_OUTPUT represents the stage where color attachment writes occur.
         // In this case, Vulkan ensures that color attachment output from operations
         // outside the render pass is finished before continuing (e.g. presenting to the user).
-        .src_stage_mask(
-            vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT
-        )
+        .src_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
         // Specifies the memory access type(s) in the source scope that need synchronization.
         // In this case there are no specific memory accesses that need synchronization in this dependency.
         .src_access_mask(vk::AccessFlags::empty())
@@ -53,16 +51,12 @@ pub fn create_render_pass(device: &Device, format: vk::Format) -> Result<vk::Ren
         // subpass that write to the color attachment depend on the completion of prior operations.
         // This ensures that the destination subpass starts writing to the color attachment
         // only after it's safe to do so.
-        .dst_stage_mask(
-            vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-        )
+        .dst_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
         // Specifies the memory access type(s) required in the destination scope.
         // COLOR_ATTACHMENT_WRITE indicates that the subpass will write to the color attachment.
         // This ensures proper synchronization of memory for writing, so the render pass
         // doesn't overwrite data that's still being processed from prior operations.
-        .dst_access_mask(
-            vk::AccessFlags::COLOR_ATTACHMENT_READ | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-        );
+        .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE);
 
     let rp_info = vk::RenderPassCreateInfo::builder()
         .attachments(std::slice::from_ref(&color_attachment))

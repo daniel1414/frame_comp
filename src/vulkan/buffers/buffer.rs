@@ -1,12 +1,9 @@
 use anyhow::*;
 use vulkanalia::prelude::v1_3::*;
 
-/* use crate::{
-    vulkan::commands::{begin_single_time_commands, end_single_time_commands},
-};
+use crate::vulkan::commands::{begin_single_time_commands, end_single_time_commands};
 
-pub fn create_buffer(
-    instance: &Instance,
+/* pub fn create_buffer(
     device: &Device,
     size: vk::DeviceSize,
     usage: vk::BufferUsageFlags,
@@ -79,5 +76,4 @@ pub fn copy_buffer(
     }
 
     Ok(())
-}
- */
+} */

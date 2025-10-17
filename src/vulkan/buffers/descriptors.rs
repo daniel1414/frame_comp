@@ -33,26 +33,6 @@ pub fn create_descriptor_set_layout(device: &Device) -> Result<vk::DescriptorSet
     Ok(descriptor_set_layout)
 }
 
-/// A descriptor pool is an object that manages the memory required for allocating descriptor sets.
-/// Pools alow efficient batch allocation and destruction of descriptor sets.
-pub fn create_descriptor_pool(device: &Device) -> Result<vk::DescriptorPool> {
-    let sampler_size = vk::DescriptorPoolSize::builder()
-        .type_(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-        .descriptor_count(2)
-        .build();
-
-    let pool_sizes = &[sampler_size];
-    let info = vk::DescriptorPoolCreateInfo::builder()
-        .pool_sizes(pool_sizes)
-        .max_sets(1)
-        .flags(vk::DescriptorPoolCreateFlags::FREE_DESCRIPTOR_SET)
-        .build();
-
-    let descriptor_pool = unsafe { device.create_descriptor_pool(&info, None) }?;
-
-    Ok(descriptor_pool)
-}
-
 /// A descriptor is an object, that specifies how a shader accesses a resource.
 /// It is metadata that tells Vulkan:
 /// What resource to access (e.g., a uniform buffer, storage buffer, sampled image, etc.)

@@ -2,8 +2,6 @@ use anyhow::Result;
 use vulkanalia::bytecode::Bytecode;
 use vulkanalia::prelude::v1_3::*;
 
-use super::vertex::Vertex;
-
 pub(crate) fn create_pipeline(
     device: &Device,
     extent: &vk::Extent2D,
@@ -26,13 +24,6 @@ pub(crate) fn create_pipeline(
         .stage(vk::ShaderStageFlags::FRAGMENT)
         .module(frag_module)
         .name(b"main\0")
-        .build();
-
-    let binding_descriptions = &[Vertex::binding_description()];
-    let attribute_descriptions = Vertex::attribute_descriptions();
-    let vertex_input_state = vk::PipelineVertexInputStateCreateInfo::builder()
-        .vertex_binding_descriptions(binding_descriptions)
-        .vertex_attribute_descriptions(&attribute_descriptions)
         .build();
 
     let input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo::builder()
@@ -132,6 +123,11 @@ pub(crate) fn create_pipeline(
     .depth_bounds_test_enable(false)
     // We will not be using stencil operations here.
     .stencil_test_enable(false); */
+
+    let vertex_input_state = vk::PipelineVertexInputStateCreateInfo::builder()
+        .vertex_binding_descriptions(&[] as &[vk::VertexInputBindingDescription])
+        .vertex_attribute_descriptions(&[] as &[vk::VertexInputAttributeDescription])
+        .build();
 
     let stages = &[vert_stage, frag_stage];
     let info = vk::GraphicsPipelineCreateInfo::builder()
