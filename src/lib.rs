@@ -93,8 +93,7 @@ impl FrameComparator {
     pub fn compare(
         &self,
         command_buffer: CommandBuffer,
-        left_image: &vk::ImageView,
-        right_image: &vk::ImageView,
+        percentage: f32,
         out_image: vk::Framebuffer,
     ) -> Result<()> {
         let render_area = Rect2D::builder()
@@ -138,6 +137,16 @@ impl FrameComparator {
                 0,
                 std::slice::from_ref(&self.descriptor_set),
                 &[] as &[u32],
+            );
+
+            // Push constants for the vertical divider (ideal for per-frame data)
+            let bytes: &[u8] = bytemuck::bytes_of(&percentage);
+            self.device.cmd_push_constants(
+                command_buffer,
+                self.pipeline_layout,
+                vk::ShaderStageFlags::FRAGMENT,
+                0,
+                bytes,
             );
 
             self.device.cmd_draw(command_buffer, 3, 1, 0, 0);
