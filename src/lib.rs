@@ -12,6 +12,67 @@ use crate::vulkan::{
 
 pub(crate) mod vulkan;
 
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Color(pub f32, pub f32, pub f32, pub f32);
+
+pub struct FrameCompareInfo {
+    command_buffer: vk::CommandBuffer, // The command buffer to record commands to.
+    out_image: vk::Framebuffer,        // The output image
+    divider_position: f32,             // Position of the divider in range [0.0; 1.0]
+    divider_width: u8,                 // Width of the divider bar in logical pixels,
+    divider_color: Color,              // Color of the divider in RGB
+}
+
+pub struct FrameCompareInfoBuilder {
+    info: FrameCompareInfo,
+}
+
+impl FrameCompareInfoBuilder {
+    pub fn command_buffer(mut self, buffer: vk::CommandBuffer) -> Self {
+        self.info.command_buffer = buffer;
+        self
+    }
+
+    pub fn out_framebuffer(mut self, framebuffer: vk::Framebuffer) -> Self {
+        self.info.out_image = framebuffer;
+        self
+    }
+
+    pub fn position(mut self, position: f32) -> Self {
+        self.info.divider_position = position;
+        self
+    }
+
+    pub fn width(mut self, width: u8) -> Self {
+        self.info.divider_width = width;
+        self
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.info.divider_color = color;
+        self
+    }
+
+    pub fn build(self) -> FrameCompareInfo {
+        self.info
+    }
+}
+
+impl FrameCompareInfo {
+    pub fn builder() -> FrameCompareInfoBuilder {
+        FrameCompareInfoBuilder {
+            info: FrameCompareInfo {
+                command_buffer: vk::CommandBuffer::default(),
+                out_image: vk::Framebuffer::default(),
+                divider_position: 0.5f32,
+                divider_width: 5,
+                divider_color: Color(0.0_f32, 0.0_f32, 0.0_f32, 1.0_f32),
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct FrameComparator {
     // For interfacing with the hardware,
@@ -24,7 +85,6 @@ pub struct FrameComparator {
     pipeline: vk::Pipeline,
     extent: vk::Extent2D,
     sampler: vk::Sampler,
-    div_width: u8,
 }
 
 impl Drop for FrameComparator {
@@ -48,7 +108,6 @@ impl FrameComparator {
         format: vk::Format,
         extent: vk::Extent2D,
         image_views: &[vk::ImageView; 2],
-        divider_width: Option<u8>,
     ) -> Result<Self> {
         let render_pass = create_render_pass(&device, format)?;
         let descriptor_set_layout = create_descriptor_set_layout(&device)?;
@@ -63,11 +122,6 @@ impl FrameComparator {
         // updating descriptor sets
         update_descriptor_sets(&device, &descriptor_set, &sampler, image_views);
 
-        let div_width = match divider_width {
-            Some(width) => width,
-            None => 4,
-        };
-
         Ok(Self {
             render_pass,
             device,
@@ -77,19 +131,13 @@ impl FrameComparator {
             pipeline,
             extent,
             sampler,
-            div_width,
         })
     }
 
     pub fn render_pass(&self) -> vk::RenderPass {
         self.render_pass
     }
-    pub fn compare(
-        &self,
-        command_buffer: vk::CommandBuffer,
-        percentage: f32,
-        out_image: vk::Framebuffer,
-    ) -> Result<()> {
+    pub fn compare(&self, info: &FrameCompareInfo) -> Result<()> {
         let render_area = vk::Rect2D::builder()
             .offset(vk::Offset2D::default())
             .extent(self.extent)
@@ -104,10 +152,12 @@ impl FrameComparator {
         let clear_values = &[color_clear_value];
         let begin_info = vk::RenderPassBeginInfo::builder()
             .render_pass(self.render_pass)
-            .framebuffer(out_image)
+            .framebuffer(info.out_image)
             .render_area(render_area)
             .clear_values(clear_values)
             .build();
+
+        let command_buffer = info.command_buffer;
 
         unsafe {
             println!("Begin comparator render pass");
@@ -135,8 +185,9 @@ impl FrameComparator {
 
             // Push constants for the vertical divider (ideal for per-frame data)
             let push_buffer = PushConstantBuffer {
-                divider_pos: percentage,
-                divider_width: self.div_width as f32 / self.extent.width as f32,
+                divider_pos: info.divider_position,
+                divider_width: info.divider_width as f32 / self.extent.width as f32,
+                color: info.divider_color,
             };
 
             let bytes: &[u8] = bytemuck::bytes_of(&push_buffer);
