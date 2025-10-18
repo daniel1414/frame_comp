@@ -52,7 +52,7 @@ pub fn create_descriptor_set_layout(device: &Device) -> Result<vk::DescriptorSet
 /// The sets are bound to the pipeline before issuing draw calls.
 ///
 ///
-pub fn create_descriptor_set(
+pub(crate) fn create_descriptor_set(
     device: &Device,
     pool: &vk::DescriptorPool,
     layout: &vk::DescriptorSetLayout,
@@ -65,29 +65,52 @@ pub fn create_descriptor_set(
 
     let descriptor_sets = unsafe { device.allocate_descriptor_sets(&info) }?;
 
-    // This will be useful later in the compare() function
-    /* let image_info = vk::DescriptorImageInfo::builder()
+    Ok(descriptor_sets[0])
+}
+
+pub(crate) fn update_descriptor_sets(
+    device: &Device,
+    descriptor_set: &vk::DescriptorSet,
+    sampler: &vk::Sampler,
+    image_views: &[vk::ImageView; 2],
+) {
+    // Use one sampler for both image views
+    let image_info = vk::DescriptorImageInfo::builder()
         .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-        .image_view(data.texture_image_view)
-        .sampler(data.texture_sampler)
+        .image_view(image_views[0])
+        .sampler(*sampler)
         .build();
 
     let image_infos = &[image_info];
 
     let sampler_write = vk::WriteDescriptorSet::builder()
-        .dst_set(descriptor_sets[0])
+        .dst_set(*descriptor_set)
+        .dst_binding(0)
+        .dst_array_element(0)
+        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+        .image_info(image_infos)
+        .build();
+
+    let image_info = vk::DescriptorImageInfo::builder()
+        .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+        .image_view(image_views[1])
+        .sampler(*sampler)
+        .build();
+    let image_infos = std::slice::from_ref(&image_info);
+
+    let sampler_write2 = vk::WriteDescriptorSet::builder()
+        .dst_set(*descriptor_set)
         .dst_binding(1)
         .dst_array_element(0)
         .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-        .image_info(image_infos);
+        .image_info(image_infos)
+        .build();
 
     // The second argument can be used to copy descriptor sets to each other.
     unsafe {
         device.update_descriptor_sets(
-            &[sampler_write],
+            &[sampler_write, sampler_write2],
             &[] as &[vk::CopyDescriptorSet],
         )
-    }; */
-
-    Ok(descriptor_sets[0])
+    };
 }

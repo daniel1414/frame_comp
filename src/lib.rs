@@ -6,9 +6,12 @@ use vulkanalia::{
 };
 
 use crate::vulkan::{
-    buffers::descriptors::{create_descriptor_set, create_descriptor_set_layout},
+    buffers::descriptors::{
+        create_descriptor_set, create_descriptor_set_layout, update_descriptor_sets,
+    },
     pipeline::create_pipeline,
     render_pass::create_render_pass,
+    sampler::create_image_sampler,
 };
 
 pub mod vulkan;
@@ -27,11 +30,13 @@ pub struct FrameComparator {
     extent: vk::Extent2D,
     graphics_queue: vk::Queue,
     command_pool: vk::CommandPool,
+    sampler: vk::Sampler,
 }
 
 impl Drop for FrameComparator {
     fn drop(&mut self) {
         unsafe {
+            self.device.destroy_sampler(self.sampler, None);
             self.device.destroy_pipeline(self.pipeline, None);
             self.device
                 .destroy_pipeline_layout(self.pipeline_layout, None);
@@ -50,6 +55,7 @@ impl FrameComparator {
         descriptor_pool: vk::DescriptorPool,
         format: vk::Format,
         extent: vk::Extent2D,
+        image_views: &[vk::ImageView; 2],
     ) -> Result<Self> {
         let render_pass = create_render_pass(&device, format)?;
         let descriptor_set_layout = create_descriptor_set_layout(&device)?;
@@ -58,6 +64,11 @@ impl FrameComparator {
 
         let (pipeline_layout, pipeline) =
             create_pipeline(&device, &extent, &render_pass, &[descriptor_set_layout])?;
+
+        let sampler = create_image_sampler(&device)?;
+
+        // updating descriptor sets
+        update_descriptor_sets(&device, &descriptor_set, &sampler, image_views);
 
         // vertices and indices
 
@@ -72,6 +83,7 @@ impl FrameComparator {
             extent,
             graphics_queue,
             command_pool,
+            sampler,
         })
     }
 
@@ -81,8 +93,8 @@ impl FrameComparator {
     pub fn compare(
         &self,
         command_buffer: CommandBuffer,
-        left_image: vk::Framebuffer,
-        right_image: vk::Framebuffer,
+        left_image: &vk::ImageView,
+        right_image: &vk::ImageView,
         out_image: vk::Framebuffer,
     ) -> Result<()> {
         let render_area = Rect2D::builder()
@@ -112,15 +124,25 @@ impl FrameComparator {
                 vk::SubpassContents::INLINE,
             );
 
-            // Bind pipeline, pipeline layout, descriptor sets, draw, end render pass and voila.
+            // Bind pipeline, descriptor sets, draw, end render pass and voila.
             self.device.cmd_bind_pipeline(
                 command_buffer,
                 vk::PipelineBindPoint::GRAPHICS,
                 self.pipeline,
             );
 
+            self.device.cmd_bind_descriptor_sets(
+                command_buffer,
+                vk::PipelineBindPoint::GRAPHICS,
+                self.pipeline_layout,
+                0,
+                std::slice::from_ref(&self.descriptor_set),
+                &[] as &[u32],
+            );
+
             self.device.cmd_draw(command_buffer, 3, 1, 0, 0);
-            dbg!("End comparator render pass");
+
+            println!("End comparator render pass");
             self.device.cmd_end_render_pass(command_buffer);
         }
 
