@@ -1,7 +1,16 @@
 use anyhow::Result;
 use vulkanalia::prelude::v1_3::*;
 
-pub fn create_render_pass(device: &Device, format: vk::Format) -> Result<vk::RenderPass> {
+pub fn create_render_pass(
+    device: &Device,
+    format: vk::Format,
+    final_layout: Option<vk::ImageLayout>,
+) -> Result<vk::RenderPass> {
+    let final_layout = match final_layout {
+        Some(layout) => layout,
+        None => vk::ImageLayout::PRESENT_SRC_KHR,
+    };
+
     let color_attachment = vk::AttachmentDescription::builder()
         // Format of the color attachment should be same as the swapchain images.
         .format(format)
@@ -16,7 +25,7 @@ pub fn create_render_pass(device: &Device, format: vk::Format) -> Result<vk::Ren
         // Expected layout of the attachment before rendering.
         .initial_layout(vk::ImageLayout::UNDEFINED)
         // Defines what the final layout of the attachment should be after rendering.
-        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR)
+        .final_layout(final_layout)
         .build();
 
     let color_attachment_ref = vk::AttachmentReference::builder()

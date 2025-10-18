@@ -111,8 +111,9 @@ impl FrameComparator {
         format: vk::Format,
         extent: vk::Extent2D,
         image_views: &[vk::ImageView; 2],
+        final_layout: Option<vk::ImageLayout>,
     ) -> Result<Self> {
-        let render_pass = create_render_pass(&device, format)?;
+        let render_pass = create_render_pass(&device, format, final_layout)?;
         let descriptor_set_layout = create_descriptor_set_layout(&device)?;
         let descriptor_set =
             create_descriptor_set(&device, &descriptor_pool, &descriptor_set_layout)?;
