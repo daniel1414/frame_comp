@@ -17,9 +17,9 @@ layout (location = 0) out vec4 outColor;
 void main() {
 
     if (texPosition.x < pc.divider - pc.divider_width / 2.0) {
-        outColor = vec4(0.1, 0.0, 0.0, 1.0) + texture(leftImage, texPosition);
+        outColor = texture(leftImage, texPosition);
     } else if (texPosition.x > pc.divider + pc.divider_width / 2.0) {
-        outColor = vec4(0.0, 0.1, 0.0, 1.0) + texture(rightImage, texPosition);
+        outColor = texture(rightImage, texPosition);
     } else {
         outColor = pc.divider_color;
     }

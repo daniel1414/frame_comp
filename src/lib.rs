@@ -13,48 +13,53 @@ use crate::vulkan::{
 pub(crate) mod vulkan;
 
 #[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Color(pub f32, pub f32, pub f32, pub f32);
 
+#[derive(Clone, Copy, Debug, Default)]
 pub struct FrameCompareInfo {
-    command_buffer: vk::CommandBuffer, // The command buffer to record commands to.
-    out_image: vk::Framebuffer,        // The output image
-    divider_position: f32,             // Position of the divider in range [0.0; 1.0]
-    divider_width: u8,                 // Width of the divider bar in logical pixels,
-    divider_color: Color,              // Color of the divider in RGB
+    pub command_buffer: vk::CommandBuffer, // The command buffer to record commands to.
+    pub out_framebuffer: vk::Framebuffer,  // The output image
+    pub divider_position: f32,             // Position of the divider in range [0.0; 1.0]
+    pub divider_width: u8,                 // Width of the divider bar in logical pixels,
+    pub divider_color: Color,              // Color of the divider in RGB
 }
 
+#[derive(Clone, Copy, Debug, Default)]
 pub struct FrameCompareInfoBuilder {
     info: FrameCompareInfo,
 }
 
 impl FrameCompareInfoBuilder {
-    pub fn command_buffer(mut self, buffer: vk::CommandBuffer) -> Self {
+    pub fn command_buffer(&mut self, buffer: vk::CommandBuffer) -> &mut Self {
         self.info.command_buffer = buffer;
         self
     }
 
-    pub fn out_framebuffer(mut self, framebuffer: vk::Framebuffer) -> Self {
-        self.info.out_image = framebuffer;
+    pub fn out_framebuffer(&mut self, framebuffer: vk::Framebuffer) -> &mut Self {
+        self.info.out_framebuffer = framebuffer;
         self
     }
 
-    pub fn position(mut self, position: f32) -> Self {
+    pub fn position(&mut self, position: f32) -> &mut Self {
         self.info.divider_position = position;
         self
     }
 
-    pub fn width(mut self, width: u8) -> Self {
+    pub fn width(&mut self, width: u8) -> &mut Self {
         self.info.divider_width = width;
         self
     }
 
-    pub fn color(mut self, color: Color) -> Self {
+    pub fn color(&mut self, color: Color) -> &mut Self {
         self.info.divider_color = color;
         self
     }
 
     pub fn build(self) -> FrameCompareInfo {
+        assert_ne!(self.info.command_buffer, vk::CommandBuffer::default());
+        assert_ne!(self.info.out_framebuffer, vk::Framebuffer::default());
+
         self.info
     }
 }
@@ -63,11 +68,9 @@ impl FrameCompareInfo {
     pub fn builder() -> FrameCompareInfoBuilder {
         FrameCompareInfoBuilder {
             info: FrameCompareInfo {
-                command_buffer: vk::CommandBuffer::default(),
-                out_image: vk::Framebuffer::default(),
-                divider_position: 0.5f32,
-                divider_width: 5,
-                divider_color: Color(0.0_f32, 0.0_f32, 0.0_f32, 1.0_f32),
+                divider_position: 0.5_f32,
+                divider_width: 4_u8,
+                ..Default::default()
             },
         }
     }
@@ -76,7 +79,7 @@ impl FrameCompareInfo {
 #[derive(Clone, Debug)]
 pub struct FrameComparator {
     // For interfacing with the hardware,
-    pub render_pass: vk::RenderPass,
+    render_pass: vk::RenderPass,
 
     device: Rc<Device>,
     descriptor_set_layout: vk::DescriptorSetLayout,
@@ -152,7 +155,7 @@ impl FrameComparator {
         let clear_values = &[color_clear_value];
         let begin_info = vk::RenderPassBeginInfo::builder()
             .render_pass(self.render_pass)
-            .framebuffer(info.out_image)
+            .framebuffer(info.out_framebuffer)
             .render_area(render_area)
             .clear_values(clear_values)
             .build();
