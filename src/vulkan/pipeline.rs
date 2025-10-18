@@ -2,6 +2,8 @@ use anyhow::Result;
 use vulkanalia::bytecode::Bytecode;
 use vulkanalia::prelude::v1_3::*;
 
+use crate::vulkan::push_constants::PushConstantBuffer;
+
 pub(crate) fn create_pipeline(
     device: &Device,
     extent: &vk::Extent2D,
@@ -102,7 +104,7 @@ pub(crate) fn create_pipeline(
     let push_constant_range = vk::PushConstantRange::builder()
         .stage_flags(vk::ShaderStageFlags::FRAGMENT)
         .offset(0)
-        .size(std::mem::size_of::<f32>() as u32)
+        .size(std::mem::size_of::<PushConstantBuffer>() as u32)
         .build();
 
     let set_layouts = descriptor_set_layouts;

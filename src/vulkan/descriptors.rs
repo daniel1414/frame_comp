@@ -1,14 +1,12 @@
 use anyhow::Result;
 use vulkanalia::prelude::v1_3::*;
 
-pub type Mat4 = cgmath::Matrix4<f32>;
-
 /// This function should probably take in a descriptor type and the stage flags
 /// for more flexibility. That's to be done when we will need descriptor set layouts
 /// other than the one for the uniform buffer.
 ///
 /// A descriptor set layout defines the structure of descriptors visible to shaders.
-pub fn create_descriptor_set_layout(device: &Device) -> Result<vk::DescriptorSetLayout> {
+pub(crate) fn create_descriptor_set_layout(device: &Device) -> Result<vk::DescriptorSetLayout> {
     let left_sampler_binding = vk::DescriptorSetLayoutBinding::builder()
         .binding(0)
         .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)

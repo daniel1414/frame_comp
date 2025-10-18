@@ -1,20 +1,16 @@
 use anyhow::Result;
 use std::rc::Rc;
-use vulkanalia::{
-    prelude::v1_3::*,
-    vk::{CommandBuffer, Rect2D},
-};
+use vulkanalia::prelude::v1_3::*;
 
 use crate::vulkan::{
-    buffers::descriptors::{
-        create_descriptor_set, create_descriptor_set_layout, update_descriptor_sets,
-    },
+    descriptors::{create_descriptor_set, create_descriptor_set_layout, update_descriptor_sets},
     pipeline::create_pipeline,
+    push_constants::PushConstantBuffer,
     render_pass::create_render_pass,
     sampler::create_image_sampler,
 };
 
-pub mod vulkan;
+pub(crate) mod vulkan;
 
 #[derive(Clone, Debug)]
 pub struct FrameComparator {
@@ -22,15 +18,13 @@ pub struct FrameComparator {
     pub render_pass: vk::RenderPass,
 
     device: Rc<Device>,
-    descriptor_pool: vk::DescriptorPool,
     descriptor_set_layout: vk::DescriptorSetLayout,
     descriptor_set: vk::DescriptorSet,
     pipeline_layout: vk::PipelineLayout,
     pipeline: vk::Pipeline,
     extent: vk::Extent2D,
-    graphics_queue: vk::Queue,
-    command_pool: vk::CommandPool,
     sampler: vk::Sampler,
+    div_width: u8,
 }
 
 impl Drop for FrameComparator {
@@ -50,12 +44,11 @@ impl Drop for FrameComparator {
 impl FrameComparator {
     pub fn new(
         device: Rc<Device>,
-        graphics_queue: vk::Queue,
-        command_pool: vk::CommandPool,
         descriptor_pool: vk::DescriptorPool,
         format: vk::Format,
         extent: vk::Extent2D,
         image_views: &[vk::ImageView; 2],
+        divider_width: Option<u8>,
     ) -> Result<Self> {
         let render_pass = create_render_pass(&device, format)?;
         let descriptor_set_layout = create_descriptor_set_layout(&device)?;
@@ -70,20 +63,21 @@ impl FrameComparator {
         // updating descriptor sets
         update_descriptor_sets(&device, &descriptor_set, &sampler, image_views);
 
-        // vertices and indices
+        let div_width = match divider_width {
+            Some(width) => width,
+            None => 4,
+        };
 
         Ok(Self {
             render_pass,
             device,
-            descriptor_pool,
             descriptor_set_layout,
             descriptor_set,
             pipeline_layout,
             pipeline,
             extent,
-            graphics_queue,
-            command_pool,
             sampler,
+            div_width,
         })
     }
 
@@ -92,11 +86,11 @@ impl FrameComparator {
     }
     pub fn compare(
         &self,
-        command_buffer: CommandBuffer,
+        command_buffer: vk::CommandBuffer,
         percentage: f32,
         out_image: vk::Framebuffer,
     ) -> Result<()> {
-        let render_area = Rect2D::builder()
+        let render_area = vk::Rect2D::builder()
             .offset(vk::Offset2D::default())
             .extent(self.extent)
             .build();
@@ -140,7 +134,12 @@ impl FrameComparator {
             );
 
             // Push constants for the vertical divider (ideal for per-frame data)
-            let bytes: &[u8] = bytemuck::bytes_of(&percentage);
+            let push_buffer = PushConstantBuffer {
+                divider_pos: percentage,
+                divider_width: self.div_width as f32 / self.extent.width as f32,
+            };
+
+            let bytes: &[u8] = bytemuck::bytes_of(&push_buffer);
             self.device.cmd_push_constants(
                 command_buffer,
                 self.pipeline_layout,
