@@ -164,7 +164,6 @@ impl FrameComparator {
         let command_buffer = info.command_buffer;
 
         unsafe {
-            println!("Begin comparator render pass");
             self.device.cmd_begin_render_pass(
                 command_buffer,
                 &begin_info,
@@ -204,8 +203,6 @@ impl FrameComparator {
             );
 
             self.device.cmd_draw(command_buffer, 3, 1, 0, 0);
-
-            println!("End comparator render pass");
             self.device.cmd_end_render_pass(command_buffer);
         }
 

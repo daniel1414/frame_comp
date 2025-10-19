@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-vulkanalia = { version = "=0.29.0", features = ["libloading", "provisional", "window"]}
-cgmath = "0.18"
-anyhow = "1"
-bytemuck = { version = "1.17", features = ["derive"] }
+vulkanalia = { version = "0.31.0", features = ["libloading", "provisional", "window"]}
+cgmath = "0.18.0"
+anyhow = "1.0.100"
+bytemuck = { version = "1.24.0", features = ["derive"] }
