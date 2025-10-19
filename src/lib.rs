@@ -1,4 +1,5 @@
 use anyhow::Result;
+use derive_builder::Builder;
 use std::rc::Rc;
 use vulkanalia::prelude::v1_3::*;
 
@@ -16,63 +17,24 @@ pub(crate) mod vulkan;
 #[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Color(pub f32, pub f32, pub f32, pub f32);
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Builder, Clone, Copy, Debug)]
+#[builder(setter(into))]
 pub struct FrameCompareInfo {
+    #[builder(default)]
     pub command_buffer: vk::CommandBuffer, // The command buffer to record commands to.
-    pub out_framebuffer: vk::Framebuffer,  // The output image
-    pub divider_position: f32,             // Position of the divider in range [0.0; 1.0]
-    pub divider_width: u8,                 // Width of the divider bar in logical pixels,
-    pub divider_color: Color,              // Color of the divider in RGB
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct FrameCompareInfoBuilder {
-    info: FrameCompareInfo,
-}
-
-impl FrameCompareInfoBuilder {
-    pub fn command_buffer(&mut self, buffer: vk::CommandBuffer) -> &mut Self {
-        self.info.command_buffer = buffer;
-        self
-    }
-
-    pub fn out_framebuffer(&mut self, framebuffer: vk::Framebuffer) -> &mut Self {
-        self.info.out_framebuffer = framebuffer;
-        self
-    }
-
-    pub fn position(&mut self, position: f32) -> &mut Self {
-        self.info.divider_position = position;
-        self
-    }
-
-    pub fn width(&mut self, width: u8) -> &mut Self {
-        self.info.divider_width = width;
-        self
-    }
-
-    pub fn color(&mut self, color: Color) -> &mut Self {
-        self.info.divider_color = color;
-        self
-    }
-
-    pub fn build(self) -> FrameCompareInfo {
-        assert_ne!(self.info.command_buffer, vk::CommandBuffer::default());
-        assert_ne!(self.info.out_framebuffer, vk::Framebuffer::default());
-
-        self.info
-    }
+    #[builder(default)]
+    pub out_framebuffer: vk::Framebuffer, // The output image
+    #[builder(default = "0.5_f32")]
+    pub divider_position: f32, // Position of the divider in range [0.0; 1.0]
+    #[builder(default = "4_u8")]
+    pub divider_width: u8, // Width of the divider bar in logical pixels,
+    #[builder(default)]
+    pub divider_color: Color, // Color of the divider in RGB
 }
 
 impl FrameCompareInfo {
     pub fn builder() -> FrameCompareInfoBuilder {
-        FrameCompareInfoBuilder {
-            info: FrameCompareInfo {
-                divider_position: 0.5_f32,
-                divider_width: 4_u8,
-                ..Default::default()
-            },
-        }
+        FrameCompareInfoBuilder::default()
     }
 }
 
