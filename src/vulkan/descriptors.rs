@@ -7,27 +7,22 @@ use vulkanalia::prelude::v1_3::*;
 ///
 /// A descriptor set layout defines the structure of descriptors visible to shaders.
 pub(crate) fn create_descriptor_set_layout(device: &Device) -> Result<vk::DescriptorSetLayout> {
-    let left_sampler_binding = vk::DescriptorSetLayoutBinding::builder()
-        .binding(0)
-        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::FRAGMENT)
-        .build();
+    let bindings = (0..2)
+        .map(|i| {
+            vk::DescriptorSetLayoutBinding::builder()
+                .binding(i)
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::FRAGMENT)
+                .build()
+        })
+        .collect::<Vec<_>>();
 
-    let right_sampler_binding = vk::DescriptorSetLayoutBinding::builder()
-        .binding(1)
-        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::FRAGMENT)
-        .build();
-
-    let bindings = &[left_sampler_binding, right_sampler_binding];
     let info = vk::DescriptorSetLayoutCreateInfo::builder()
-        .bindings(bindings)
+        .bindings(&bindings)
         .build();
 
     let descriptor_set_layout = unsafe { device.create_descriptor_set_layout(&info, None) }?;
-
     Ok(descriptor_set_layout)
 }
 
@@ -72,43 +67,31 @@ pub(crate) fn update_descriptor_sets(
     sampler: &vk::Sampler,
     image_views: &[vk::ImageView; 2],
 ) {
-    // Use one sampler for both image views
-    let image_info = vk::DescriptorImageInfo::builder()
-        .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-        .image_view(image_views[0])
-        .sampler(*sampler)
-        .build();
+    let infos = image_views
+        .iter()
+        .map(|image_view| {
+            vk::DescriptorImageInfo::builder()
+                .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .image_view(*image_view)
+                .sampler(*sampler)
+                .build()
+        })
+        .collect::<Vec<_>>();
 
-    let image_infos = &[image_info];
-
-    let sampler_write = vk::WriteDescriptorSet::builder()
-        .dst_set(*descriptor_set)
-        .dst_binding(0)
-        .dst_array_element(0)
-        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-        .image_info(image_infos)
-        .build();
-
-    let image_info = vk::DescriptorImageInfo::builder()
-        .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-        .image_view(image_views[1])
-        .sampler(*sampler)
-        .build();
-    let image_infos = std::slice::from_ref(&image_info);
-
-    let sampler_write2 = vk::WriteDescriptorSet::builder()
-        .dst_set(*descriptor_set)
-        .dst_binding(1)
-        .dst_array_element(0)
-        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-        .image_info(image_infos)
-        .build();
+    let writes = infos
+        .iter()
+        .enumerate()
+        .map(|(i, image_info)| {
+            vk::WriteDescriptorSet::builder()
+                .dst_set(*descriptor_set)
+                .dst_binding(i as u32)
+                .dst_array_element(0)
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .image_info(std::slice::from_ref(image_info))
+                .build()
+        })
+        .collect::<Vec<_>>();
 
     // The second argument can be used to copy descriptor sets to each other.
-    unsafe {
-        device.update_descriptor_sets(
-            &[sampler_write, sampler_write2],
-            &[] as &[vk::CopyDescriptorSet],
-        )
-    };
+    unsafe { device.update_descriptor_sets(&writes, &[] as &[vk::CopyDescriptorSet]) };
 }

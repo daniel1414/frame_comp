@@ -110,7 +110,7 @@ pub(crate) fn create_pipeline(
     let set_layouts = descriptor_set_layouts;
     let layout_info = vk::PipelineLayoutCreateInfo::builder()
         .set_layouts(set_layouts)
-        .push_constant_ranges(std::slice::from_ref(&push_constant_range))
+        .push_constant_ranges(&[push_constant_range])
         .build();
 
     let pipeline_layout = unsafe { device.create_pipeline_layout(&layout_info, None) }?;
