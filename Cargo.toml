@@ -8,4 +8,4 @@ vulkanalia = { version = "0.31.0", features = ["libloading", "provisional", "win
 cgmath = "0.18.0"
 anyhow = "1.0.100"
 bytemuck = { version = "1.24.0", features = ["derive"] }
-derive_builder = "0.12"
+derive_builder = "0.20.2"

@@ -1,11 +1,6 @@
 use anyhow::Result;
 use vulkanalia::prelude::v1_3::*;
 
-/// This function should probably take in a descriptor type and the stage flags
-/// for more flexibility. That's to be done when we will need descriptor set layouts
-/// other than the one for the uniform buffer.
-///
-/// A descriptor set layout defines the structure of descriptors visible to shaders.
 pub(crate) fn create_descriptor_set_layout(device: &Device) -> Result<vk::DescriptorSetLayout> {
     let bindings = (0..2)
         .map(|i| {
@@ -26,25 +21,6 @@ pub(crate) fn create_descriptor_set_layout(device: &Device) -> Result<vk::Descri
     Ok(descriptor_set_layout)
 }
 
-/// A descriptor is an object, that specifies how a shader accesses a resource.
-/// It is metadata that tells Vulkan:
-/// What resource to access (e.g., a uniform buffer, storage buffer, sampled image, etc.)
-/// How to access (e.g., read-only, read-write, etc.)
-///
-/// Descriptor types:
-///
-/// UNIFORM_BUFFER: Used for UBOs like the MVP matrix.
-/// STORAGE_BUFFER: Used for general-purpose storage buffers.
-/// SAMPLED_IMAGE/COMBINED_IMAGE_SAMPLER: Used for sampled textures and their samplers.
-/// STORAGE_IMAGE: Used for images that shaders can read from or write to directly.
-///
-/// Each descriptor is associated with a binding point in the shader (binding = n in the shader).
-///
-/// A descriptor set is a collection of descriptors grouped together. Represents a set of
-/// resources that are made available to the shaders at the same time.
-/// The sets are bound to the pipeline before issuing draw calls.
-///
-///
 pub(crate) fn create_descriptor_set(
     device: &Device,
     pool: &vk::DescriptorPool,

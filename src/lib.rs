@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use derive_builder::Builder;
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::rc::Rc;
 use vulkanalia::prelude::v1_3::*;
 
 use crate::vulkan::{
@@ -31,11 +31,6 @@ pub struct FrameCompareInfo {
     /// The command buffer to record drawing commands into.
     #[builder(default)]
     pub command_buffer: vk::CommandBuffer,
-    /// The image view to render the comparison result into.
-    #[builder(default)]
-    pub out_image_view: vk::ImageView,
-    /// The two image views to be compared.
-    pub image_views: [vk::ImageView; 2],
     /// The horizontal position of the divider, in the range `[0.0, 1.0]`.
     #[builder(default = "0.5_f32")]
     pub divider_position: f32,
@@ -59,8 +54,8 @@ pub struct FrameComparator {
     render_pass: vk::RenderPass,
 
     device: Rc<Device>,
-    descriptor_pool: vk::DescriptorPool,
     descriptor_set_layout: vk::DescriptorSetLayout,
+    descriptor_set: vk::DescriptorSet,
     pipeline_layout: vk::PipelineLayout,
     pipeline: vk::Pipeline,
     output_extent: vk::Extent2D,
@@ -68,17 +63,14 @@ pub struct FrameComparator {
 
     /// Caches framebuffers to avoid recreating them on every `compare` call.
     /// The `RefCell` allows for interior mutability.
-    framebuffer_cache: RefCell<HashMap<vk::ImageView, vk::Framebuffer>>,
+    framebuffer: vk::Framebuffer,
 }
 
 impl Drop for FrameComparator {
     fn drop(&mut self) {
         unsafe {
             self.device.destroy_sampler(self.sampler, None);
-            self.framebuffer_cache
-                .get_mut()
-                .values()
-                .for_each(|fb| self.device.destroy_framebuffer(*fb, None));
+            self.device.destroy_framebuffer(self.framebuffer, None);
             self.device.destroy_pipeline(self.pipeline, None);
             self.device
                 .destroy_pipeline_layout(self.pipeline_layout, None);
@@ -91,6 +83,12 @@ impl Drop for FrameComparator {
 }
 
 impl FrameComparator {
+    /// Returns the amount of image samplers that will be allocated by the frame comparator per compare() invocation.
+    /// This needs to be taken into account when creating the descriptor pool.
+    pub fn image_sampler_count() -> u32 {
+        2
+    }
+
     /// Creates a new `FrameComparator`.
     pub fn new(
         device: Rc<Device>,
@@ -98,6 +96,8 @@ impl FrameComparator {
         format: vk::Format,
         extent: vk::Extent2D,
         final_layout: Option<vk::ImageLayout>,
+        in_image_views: [vk::ImageView; 2],
+        out_image_view: vk::ImageView,
     ) -> Result<Self> {
         let render_pass = create_render_pass(&device, format, final_layout)?;
         let descriptor_set_layout = create_descriptor_set_layout(&device)?;
@@ -107,42 +107,39 @@ impl FrameComparator {
 
         let sampler = create_image_sampler(&device)?;
 
+        // Create framebuffer
+        let attachments = &[out_image_view];
+        let framebuffer_info = vk::FramebufferCreateInfo::builder()
+            .render_pass(render_pass)
+            .attachments(attachments)
+            .width(extent.width)
+            .height(extent.height)
+            .layers(1);
+
+        // This is inside an unsafe function, and the caller guarantees the
+        // validity of the image view.
+        let framebuffer = unsafe { device.create_framebuffer(&framebuffer_info, None)? };
+
+        // Handle descriptors
+        let descriptor_set =
+            create_descriptor_set(&device, &descriptor_pool, &descriptor_set_layout)?;
+
+        update_descriptor_sets(&device, &descriptor_set, &sampler, &in_image_views);
+
         Ok(Self {
             render_pass,
             device,
-            descriptor_pool,
             descriptor_set_layout,
+            descriptor_set,
             pipeline_layout,
             pipeline,
             output_extent: extent,
             sampler,
-            framebuffer_cache: RefCell::new(HashMap::new()),
+            framebuffer,
         })
     }
 
-    /// Removes a framebuffer associated with a specific image view from the cache and destroys it.
-    ///
-    /// # Safety
-    ///
-    /// This function **must** be called before the client destroys a `vk::ImageView` that has been
-    /// previously used in a `compare` call. Failure to do so will result in validation errors or
-    /// a crash when the `FrameComparator` is dropped, as it will attempt to destroy a framebuffer
-    /// that depends on an invalid image view.
-    pub fn clear_cache_for(&self, image_view: vk::ImageView) {
-        let mut cache = self.framebuffer_cache.borrow_mut();
-        if let Some(framebuffer) = cache.remove(&image_view) {
-            // This is safe because the caller guarantees this is called before
-            // is about to destroy the image view it depends on.
-            unsafe {
-                self.device.destroy_framebuffer(framebuffer, None);
-            }
-        }
-    }
-
     /// Records the drawing commands for comparing two images into the provided command buffer.
-    ///
-    /// This function will get or create a cached framebuffer for the output image view and
-    /// allocate a fresh descriptor set for the input image views.
     ///
     /// # Safety
     ///
@@ -150,37 +147,6 @@ impl FrameComparator {
     /// creation has enough capacity to allocate a new descriptor set for each call to `compare`.
     /// The allocated descriptor set is valid only for the lifetime of the provided command buffer.
     pub unsafe fn compare(&self, info: &FrameCompareInfo) -> Result<()> {
-        let mut cache = self.framebuffer_cache.borrow_mut();
-        let framebuffer = *cache.entry(info.out_image_view).or_insert_with(|| {
-            // Create a framebuffer for the output image view if it's not in the cache.
-            let attachments = &[info.out_image_view];
-            let framebuffer_info = vk::FramebufferCreateInfo::builder()
-                .render_pass(self.render_pass)
-                .attachments(attachments)
-                .width(self.output_extent.width)
-                .height(self.output_extent.height)
-                .layers(1);
-
-            // This is inside an unsafe function, and the caller guarantees the
-            // validity of the image view.
-            unsafe { self.device.create_framebuffer(&framebuffer_info, None) }
-                .expect("Failed to create framebuffer.")
-        });
-
-        // Allocate and update a descriptor set for this frame.
-        let descriptor_set = create_descriptor_set(
-            &self.device,
-            &self.descriptor_pool,
-            &self.descriptor_set_layout,
-        )?;
-
-        update_descriptor_sets(
-            &self.device,
-            &descriptor_set,
-            &self.sampler,
-            &info.image_views,
-        );
-
         let render_area = vk::Rect2D::builder()
             .offset(vk::Offset2D::default())
             .extent(self.output_extent)
@@ -195,7 +161,7 @@ impl FrameComparator {
         let clear_values = &[color_clear_value];
         let begin_info = vk::RenderPassBeginInfo::builder()
             .render_pass(self.render_pass)
-            .framebuffer(framebuffer)
+            .framebuffer(self.framebuffer)
             .render_area(render_area)
             .clear_values(clear_values)
             .build();
@@ -220,7 +186,7 @@ impl FrameComparator {
                 vk::PipelineBindPoint::GRAPHICS,
                 self.pipeline_layout,
                 0,
-                &[descriptor_set],
+                &[self.descriptor_set],
                 &[] as &[u32],
             );
 
