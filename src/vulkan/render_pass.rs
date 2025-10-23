@@ -4,13 +4,8 @@ use vulkanalia::prelude::v1_3::*;
 pub fn create_render_pass(
     device: &Device,
     format: vk::Format,
-    final_layout: Option<vk::ImageLayout>,
+    final_layout: vk::ImageLayout,
 ) -> Result<vk::RenderPass> {
-    let final_layout = match final_layout {
-        Some(layout) => layout,
-        None => vk::ImageLayout::PRESENT_SRC_KHR,
-    };
-
     let color_attachment = vk::AttachmentDescription::builder()
         // Format of the color attachment should be same as the swapchain images.
         .format(format)

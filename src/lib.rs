@@ -48,21 +48,44 @@ impl FrameCompareInfo {
     }
 }
 
+/// Configuration for the comparator.
+#[derive(Builder, Clone, Debug)]
+#[builder(setter(into), build_fn(name = "build"))]
+pub struct FrameComparatorCreateInfo {
+    /// The Vulkan logical device.
+    pub device: Rc<Device>,
+    /// The descriptor pool to allocate from.
+    pub descriptor_pool: vk::DescriptorPool,
+    /// The format of the output image.
+    pub format: vk::Format,
+    /// The extent (width and height) of the output image.
+    pub extent: vk::Extent2D,
+    /// The two input image views to compare.
+    pub in_image_views: [vk::ImageView; 2],
+    /// The output image view to render into.
+    pub out_image_view: vk::ImageView,
+    /// The final layout of the output image after rendering.
+    #[builder(default = "vk::ImageLayout::PRESENT_SRC_KHR")]
+    pub final_layout: vk::ImageLayout,
+}
+
+impl FrameComparatorCreateInfo {
+    pub fn builder() -> FrameComparatorCreateInfoBuilder {
+        FrameComparatorCreateInfoBuilder::default()
+    }
+}
+
 /// A reusable Vulkan utility for rendering a side-by-side image comparison.
 #[derive(Debug)]
 pub struct FrameComparator {
     render_pass: vk::RenderPass,
-
     device: Rc<Device>,
     descriptor_set_layout: vk::DescriptorSetLayout,
     descriptor_set: vk::DescriptorSet,
     pipeline_layout: vk::PipelineLayout,
     pipeline: vk::Pipeline,
-    output_extent: vk::Extent2D,
+    extent: vk::Extent2D,
     sampler: vk::Sampler,
-
-    /// Caches framebuffers to avoid recreating them on every `compare` call.
-    /// The `RefCell` allows for interior mutability.
     framebuffer: vk::Framebuffer,
 }
 
@@ -89,31 +112,24 @@ impl FrameComparator {
         2
     }
 
-    /// Creates a new `FrameComparator`.
-    pub fn new(
-        device: Rc<Device>,
-        descriptor_pool: vk::DescriptorPool,
-        format: vk::Format,
-        extent: vk::Extent2D,
-        final_layout: Option<vk::ImageLayout>,
-        in_image_views: [vk::ImageView; 2],
-        out_image_view: vk::ImageView,
-    ) -> Result<Self> {
-        let render_pass = create_render_pass(&device, format, final_layout)?;
-        let descriptor_set_layout = create_descriptor_set_layout(&device)?;
+    /// Creates a new `FrameComparator`. Allocates resources upfront, destroys them when dropped.
+    pub fn new(info: &FrameComparatorCreateInfo) -> Result<Self> {
+        let device = &info.device;
+        let render_pass = create_render_pass(device, info.format, info.final_layout)?;
+        let descriptor_set_layout = create_descriptor_set_layout(device)?;
 
         let (pipeline_layout, pipeline) =
-            create_pipeline(&device, &extent, &render_pass, &[descriptor_set_layout])?;
+            create_pipeline(device, &info.extent, &render_pass, &[descriptor_set_layout])?;
 
-        let sampler = create_image_sampler(&device)?;
+        let sampler = create_image_sampler(device)?;
 
         // Create framebuffer
-        let attachments = &[out_image_view];
+        let attachments = &[info.out_image_view];
         let framebuffer_info = vk::FramebufferCreateInfo::builder()
             .render_pass(render_pass)
             .attachments(attachments)
-            .width(extent.width)
-            .height(extent.height)
+            .width(info.extent.width)
+            .height(info.extent.height)
             .layers(1);
 
         // This is inside an unsafe function, and the caller guarantees the
@@ -122,18 +138,18 @@ impl FrameComparator {
 
         // Handle descriptors
         let descriptor_set =
-            create_descriptor_set(&device, &descriptor_pool, &descriptor_set_layout)?;
+            create_descriptor_set(device, &info.descriptor_pool, &descriptor_set_layout)?;
 
-        update_descriptor_sets(&device, &descriptor_set, &sampler, &in_image_views);
+        update_descriptor_sets(device, &descriptor_set, &sampler, &info.in_image_views);
 
         Ok(Self {
             render_pass,
-            device,
+            device: Rc::clone(device),
             descriptor_set_layout,
             descriptor_set,
             pipeline_layout,
             pipeline,
-            output_extent: extent,
+            extent: info.extent,
             sampler,
             framebuffer,
         })
@@ -149,7 +165,7 @@ impl FrameComparator {
     pub unsafe fn compare(&self, info: &FrameCompareInfo) -> Result<()> {
         let render_area = vk::Rect2D::builder()
             .offset(vk::Offset2D::default())
-            .extent(self.output_extent)
+            .extent(self.extent)
             .build();
 
         let color_clear_value = vk::ClearValue {
@@ -192,7 +208,7 @@ impl FrameComparator {
 
             let push_buffer = PushConstantBuffer {
                 divider_pos: info.divider_position,
-                divider_width: info.divider_width as f32 / self.output_extent.width as f32,
+                divider_width: info.divider_width as f32 / self.extent.width as f32,
                 color: info.divider_color,
             };
 
