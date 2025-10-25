@@ -27,7 +27,7 @@ pub struct Color(pub f32, pub f32, pub f32, pub f32);
 /// Configuration for a single frame comparison operation.
 #[derive(Builder, Clone, Copy, Debug)]
 #[builder(setter(into))]
-pub struct FrameCompareInfo {
+pub struct CompareInfo {
     /// The command buffer to record drawing commands into.
     #[builder(default)]
     pub command_buffer: vk::CommandBuffer,
@@ -42,16 +42,16 @@ pub struct FrameCompareInfo {
     pub divider_color: Color,
 }
 
-impl FrameCompareInfo {
-    pub fn builder() -> FrameCompareInfoBuilder {
-        FrameCompareInfoBuilder::default()
+impl CompareInfo {
+    pub fn builder() -> CompareInfoBuilder {
+        CompareInfoBuilder::default()
     }
 }
 
 /// Configuration for the comparator.
 #[derive(Builder, Clone, Debug)]
 #[builder(setter(into), build_fn(name = "build"))]
-pub struct FrameComparatorCreateInfo {
+pub struct RenderTargetComparatorCreateInfo {
     /// The Vulkan logical device.
     pub device: Rc<Device>,
     /// The descriptor pool to allocate from.
@@ -72,15 +72,15 @@ pub struct FrameComparatorCreateInfo {
     pub viewport: Option<vk::Viewport>,
 }
 
-impl FrameComparatorCreateInfo {
-    pub fn builder() -> FrameComparatorCreateInfoBuilder {
-        FrameComparatorCreateInfoBuilder::default()
+impl RenderTargetComparatorCreateInfo {
+    pub fn builder() -> RenderTargetComparatorCreateInfoBuilder {
+        RenderTargetComparatorCreateInfoBuilder::default()
     }
 }
 
 /// A reusable Vulkan utility for rendering a side-by-side image comparison.
 #[derive(Debug)]
-pub struct FrameComparator {
+pub struct RenderTargetComparator {
     render_pass: vk::RenderPass,
     device: Rc<Device>,
     descriptor_set_layout: vk::DescriptorSetLayout,
@@ -92,7 +92,7 @@ pub struct FrameComparator {
     framebuffer: vk::Framebuffer,
 }
 
-impl Drop for FrameComparator {
+impl Drop for RenderTargetComparator {
     fn drop(&mut self) {
         unsafe {
             self.device.destroy_sampler(self.sampler, None);
@@ -108,7 +108,7 @@ impl Drop for FrameComparator {
     }
 }
 
-impl FrameComparator {
+impl RenderTargetComparator {
     /// Returns the amount of image samplers that will be allocated by the frame comparator per compare() invocation.
     /// This needs to be taken into account when creating the descriptor pool.
     pub fn image_sampler_count() -> u32 {
@@ -116,7 +116,7 @@ impl FrameComparator {
     }
 
     /// Creates a new `FrameComparator`. Allocates resources upfront, destroys them when dropped.
-    pub fn new(info: &FrameComparatorCreateInfo) -> Result<Self> {
+    pub fn new(info: &RenderTargetComparatorCreateInfo) -> Result<Self> {
         let device = &info.device;
         let render_pass = create_render_pass(device, info.format, info.final_layout)?;
         let descriptor_set_layout = create_descriptor_set_layout(device)?;
@@ -170,7 +170,7 @@ impl FrameComparator {
     /// The caller must ensure that the `descriptor_pool` provided during `FrameComparator`
     /// creation has enough capacity to allocate a new descriptor set for each call to `compare`.
     /// The allocated descriptor set is valid only for the lifetime of the provided command buffer.
-    pub unsafe fn compare(&self, info: &FrameCompareInfo) -> Result<()> {
+    pub unsafe fn compare(&self, info: &CompareInfo) -> Result<()> {
         let render_area = vk::Rect2D::builder()
             .offset(vk::Offset2D::default())
             .extent(self.extent)
