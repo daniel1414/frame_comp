@@ -2,6 +2,14 @@
 name = "rtcmp"
 version = "0.1.0"
 edition = "2024"
+authors = ["Daniel Cichon <d.cichon.work@gmail.com>"]
+description = "A Vulkan utility for comparing two images with a draggable divider."
+license = "MIT"
+repository = "https://github.com/daniel1414/rtcmp"
+readme = "README.md"
+keywords = ["vulkan", "graphics", "comparison", "debug", "utility"]
+categories = ["graphics", "rendering::vulkan", "development-tools::debugging"]
+
 
 [dependencies]
 vulkanalia = { version = "0.31.0", features = ["libloading", "provisional", "window"]}

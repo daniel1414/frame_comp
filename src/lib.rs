@@ -1,6 +1,6 @@
 //! A Vulkan utility for comparing two images with a draggable divider.
 //!
-//! This crate provides a `FrameComparator` struct that encapsulates the necessary
+//! This crate provides a `RenderTargetComparator` struct that encapsulates the necessary
 //! Vulkan resources to render a side-by-side comparison of two images into a
 //! target image view.
 
@@ -102,7 +102,6 @@ impl Drop for RenderTargetComparator {
                 .destroy_pipeline_layout(self.pipeline_layout, None);
             self.device
                 .destroy_descriptor_set_layout(self.descriptor_set_layout, None);
-            // Descriptor sets are allocated from the pool and don't need to be freed individually.
             self.device.destroy_render_pass(self.render_pass, None);
         }
     }
