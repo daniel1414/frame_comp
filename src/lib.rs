@@ -67,6 +67,9 @@ pub struct FrameComparatorCreateInfo {
     /// The final layout of the output image after rendering.
     #[builder(default = "vk::ImageLayout::PRESENT_SRC_KHR")]
     pub final_layout: vk::ImageLayout,
+    // The viewport
+    #[builder(default = "None")]
+    pub viewport: Option<vk::Viewport>,
 }
 
 impl FrameComparatorCreateInfo {
@@ -118,8 +121,13 @@ impl FrameComparator {
         let render_pass = create_render_pass(device, info.format, info.final_layout)?;
         let descriptor_set_layout = create_descriptor_set_layout(device)?;
 
-        let (pipeline_layout, pipeline) =
-            create_pipeline(device, &info.extent, &render_pass, &[descriptor_set_layout])?;
+        let (pipeline_layout, pipeline) = create_pipeline(
+            device,
+            &info.extent,
+            &render_pass,
+            &[descriptor_set_layout],
+            info.viewport,
+        )?;
 
         let sampler = create_image_sampler(device)?;
 

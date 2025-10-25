@@ -9,6 +9,7 @@ pub(crate) fn create_pipeline(
     extent: &vk::Extent2D,
     render_pass: &vk::RenderPass,
     descriptor_set_layouts: &[vk::DescriptorSetLayout],
+    viewport: Option<vk::Viewport>,
 ) -> Result<(vk::PipelineLayout, vk::Pipeline)> {
     let vert = include_bytes!("shaders/vert.spv");
     let frag = include_bytes!("shaders/frag.spv");
@@ -34,14 +35,17 @@ pub(crate) fn create_pipeline(
         .build();
 
     // Area of the framebuffer to render to. In our case the whole area.
-    let viewport = vk::Viewport::builder()
-        .x(0.0)
-        .y(0.0)
-        .width(extent.width as f32)
-        .height(extent.height as f32)
-        .min_depth(0.0)
-        .max_depth(1.0)
-        .build();
+    let viewport = match viewport {
+        Some(vp) => vp,
+        None => vk::Viewport::builder()
+            .x(0.0)
+            .y(0.0)
+            .width(extent.width as f32)
+            .height(extent.height as f32)
+            .min_depth(0.0)
+            .max_depth(1.0)
+            .build(),
+    };
 
     // Area of the framebuffer that fragments are allowed to affect. In our case the whole area.
     let scissor = vk::Rect2D::builder()
@@ -70,8 +74,7 @@ pub(crate) fn create_pipeline(
         .build();
 
     let multisample_state = vk::PipelineMultisampleStateCreateInfo::builder()
-        .sample_shading_enable(true)
-        .min_sample_shading(0.2)
+        .sample_shading_enable(false)
         .rasterization_samples(vk::SampleCountFlags::_1)
         .build();
 
@@ -88,7 +91,6 @@ pub(crate) fn create_pipeline(
 
     let attachments = &[attachment];
 
-    // Blending new fragments with the existing ones in the framebuffer.
     let color_blend_state = vk::PipelineColorBlendStateCreateInfo::builder()
         .logic_op_enable(false)
         .logic_op(vk::LogicOp::COPY)
@@ -96,11 +98,6 @@ pub(crate) fn create_pipeline(
         .blend_constants([0.0, 0.0, 0.0, 0.0])
         .build();
 
-    // The pipeline layout is like a blueprint that defines:
-    // 1. Descriptor sets: How resources like textures and uniform buffers are accessed
-    //    by the shaders.
-    // 2. Push constants: Small amounts of data sent to shaders for per-draw customization.
-    // One push constant for the vertival divider.
     let push_constant_ranges = [vk::PushConstantRange::builder()
         .stage_flags(vk::ShaderStageFlags::FRAGMENT)
         .offset(0)
@@ -114,25 +111,6 @@ pub(crate) fn create_pipeline(
         .build();
 
     let pipeline_layout = unsafe { device.create_pipeline_layout(&layout_info, None) }?;
-
-    /* let depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo::builder()
-    // Specifies if the depth of new fragments should be compared to the depth buffer
-    // to see if they should be discarded.
-    .depth_test_enable(true)
-    // Specifies if the new depth of fragments that pass the depth test should actually
-    // be written to the depth buffer.
-    .depth_write_enable(true)
-    // Comparison that is performed to keep or discard fragments. For us lower depth = closer,
-    // So the depth of new fragments should be less.
-    .depth_compare_op(vk::CompareOp::LESS)
-    // These three parameters are used for the optional depth bound test. This allows to
-    // only keep fragments that fall within the specified depth range. This is optional.
-    //.depth_bounds_test_enable(true)
-    //.min_depth_bounds(0.0)
-    //.max_depth_bounds(1.0)
-    .depth_bounds_test_enable(false)
-    // We will not be using stencil operations here.
-    .stencil_test_enable(false); */
 
     let vertex_input_state = vk::PipelineVertexInputStateCreateInfo::builder()
         .vertex_binding_descriptions(&[] as &[vk::VertexInputBindingDescription])
@@ -149,10 +127,7 @@ pub(crate) fn create_pipeline(
         .multisample_state(&multisample_state)
         .color_blend_state(&color_blend_state)
         .layout(pipeline_layout)
-        //.depth_stencil_state(&depth_stencil_state)
-        // Link this pipeline to the correct render pass.
         .render_pass(*render_pass)
-        // And the right subpass.
         .subpass(0)
         .build();
 
