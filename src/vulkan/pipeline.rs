@@ -101,16 +101,16 @@ pub(crate) fn create_pipeline(
     //    by the shaders.
     // 2. Push constants: Small amounts of data sent to shaders for per-draw customization.
     // One push constant for the vertival divider.
-    let push_constant_range = vk::PushConstantRange::builder()
+    let push_constant_ranges = [vk::PushConstantRange::builder()
         .stage_flags(vk::ShaderStageFlags::FRAGMENT)
         .offset(0)
         .size(std::mem::size_of::<PushConstantBuffer>() as u32)
-        .build();
+        .build()];
 
     let set_layouts = descriptor_set_layouts;
     let layout_info = vk::PipelineLayoutCreateInfo::builder()
         .set_layouts(set_layouts)
-        .push_constant_ranges(&[push_constant_range])
+        .push_constant_ranges(&push_constant_ranges)
         .build();
 
     let pipeline_layout = unsafe { device.create_pipeline_layout(&layout_info, None) }?;
